@@ -2,7 +2,7 @@
 # backend/services/ml_service.py
 USE_MOCK = True
 
-from models.schemas import (
+from backend.models.schemas import (
     MLPipelineInput,
     MLPipelineOutput,
     EmotionResult,

@@ -2,7 +2,7 @@
 # backend/routes/escalation.py
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from models.schemas import (
+from backend.models.schemas import (
     EscalationEvent,
     EscalationTrigger,
     EscalationAction,
@@ -126,7 +126,7 @@ async def check_escalation(body: EscalationCheckRequest, request: Request):
             # Return a non-critical event — no storage needed
             history = sm.get_history(user_id)
             latest  = history[-1] if history else {}
-            from models.schemas import EscalationSignals
+            from backend.models.schemas import EscalationSignals
             return EscalationEvent(
                 user_id=user_id,
                 timestamp=latest.get("timestamp", __import__("datetime").datetime.utcnow()),
@@ -152,7 +152,7 @@ async def check_escalation(body: EscalationCheckRequest, request: Request):
         return sm.store_escalation(
             user_id=user_id,
             trigger=EscalationTrigger(
-                type=escalation.reason or "risk",
+                type=(escalation.reason if escalation.reason in {"keyword", "risk"} else "combined"),
                 details=f"Layers triggered: {escalation.level}",
             ),
             action=EscalationAction(

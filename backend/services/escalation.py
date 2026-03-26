@@ -1,6 +1,6 @@
 # backend/services/escalation.py
 #type:ignore
-from models.schemas import (
+from backend.models.schemas import (
     Escalation,
     EscalationEvent,
     EscalationTrigger,
@@ -173,7 +173,7 @@ def build_event(
         user_id=user_id,
         timestamp=datetime.now(timezone.utc),
         trigger=EscalationTrigger(
-            type=escalation.reason or "risk",
+            type=(escalation.reason if escalation.reason in {"keyword", "risk"} else "combined"),
             details=f"Escalation level: {escalation.level}",
         ),
         signals=EscalationSignals(

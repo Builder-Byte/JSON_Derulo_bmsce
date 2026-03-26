@@ -1,9 +1,8 @@
 # backend/routes/analyze.py
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
-from datetime import datetime, timezone
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Request
 
-from models.schemas import (
+from backend.models.schemas import (
     FrontendInputPayload,
     FrontendResponsePayload,
     MLPipelineOutput,
@@ -11,14 +10,9 @@ from models.schemas import (
     InterventionPayload,
     Escalation,
 )
-from state_manager import StateManager
-from services.ml_service import run_text_analysis, run_audio_analysis
+from backend.services.ml_service import run_text_analysis, run_audio_analysis
 
 router = APIRouter(prefix="/analyze", tags=["Analyze"])
-
-# Shared state manager instance (import from main.py in production)
-state_manager = StateManager()
-
 
 # ─────────────────────────────────────────────
 # HELPERS
@@ -63,12 +57,12 @@ def _build_escalation(ml_output: MLPipelineOutput) -> Escalation:
         return Escalation(triggered=False, level="low", reason=None)
 
 
-def _log_to_db(user_id: str):
+def _log_to_db(sm, user_id: str):
     """
     Background task — writes latest entry to DB.
     Plug storage.py here in Phase 2.
     """
-    db_entry = state_manager.get_db_log_entry(user_id)
+    db_entry = sm.get_db_log_entry(user_id)
     # TODO: storage.save(db_entry)
     print(f"[DB LOG] {db_entry}")
 
@@ -76,6 +70,7 @@ def _log_to_db(user_id: str):
 async def analyze_text(
     payload: FrontendInputPayload,
     background_tasks: BackgroundTasks,
+    request: Request,
 ):
     """
     Core endpoint. Accepts frontend payload, runs ML analysis,
@@ -86,19 +81,20 @@ async def analyze_text(
         → store_ml_output → build_frontend_response
     """
     user_id = payload.user_id
+    sm = request.app.state.state_manager
 
     try:
         # 1 — Store raw frontend input
-        state_manager.store_input(payload)
+        sm.store_input(payload)
 
         # 2 — Build ML pipeline input from state
-        ml_input = state_manager.build_ml_input(user_id)
+        ml_input = sm.build_ml_input(user_id)
 
         # 3 — Run ML (mock or real depending on USE_MOCK flag)
         ml_output = run_text_analysis(ml_input)
 
         # 4 — Persist ML output into user history
-        state_manager.store_ml_output(user_id, ml_output)
+        sm.store_ml_output(user_id, ml_output)
 
         # 5 — Determine intervention + escalation
         intervention = _build_intervention(ml_output)
@@ -106,18 +102,18 @@ async def analyze_text(
 
         # 6 — Store escalation event if triggered
         if escalation.triggered:
-            from models.schemas import EscalationTrigger, EscalationAction
-            state_manager.store_escalation(
+            from backend.models.schemas import EscalationTrigger, EscalationAction
+            sm.store_escalation(
                 user_id=user_id,
                 trigger=EscalationTrigger(type="risk", details=f"risk={ml_output.risk}"),
                 action=EscalationAction(level="critical", next_step="contact_support"),
             )
 
         # 7 — DB log in background (non-blocking)
-        background_tasks.add_task(_log_to_db, user_id)
+        background_tasks.add_task(_log_to_db, sm, user_id)
 
         # 8 — Build and return validated response
-        return state_manager.build_frontend_response(user_id, intervention, escalation)
+        return sm.build_frontend_response(user_id, intervention, escalation)
 
     except KeyError as e:
         raise HTTPException(status_code=400, detail=f"Missing field: {e}")
@@ -133,6 +129,7 @@ async def analyze_text(
 async def analyze_audio(
     payload: FrontendInputPayload,
     background_tasks: BackgroundTasks,
+    request: Request,
 ):
     """
     Audio analysis endpoint. Expects audio_base64 in the payload.
@@ -143,29 +140,30 @@ async def analyze_audio(
         → store_ml_output → build_frontend_response
     """
     user_id = payload.user_id
+    sm = request.app.state.state_manager
 
     try:
         # 1 — Store raw frontend input
-        state_manager.store_input(payload)
+        sm.store_input(payload)
 
         # 2 — Use audio if present, else fall back to text
         if payload.audio_base64:
             ml_output = run_audio_analysis(payload.audio_base64)
         else:
-            ml_input  = state_manager.build_ml_input(user_id)
+            ml_input  = sm.build_ml_input(user_id)
             ml_output = run_text_analysis(ml_input)
 
         # 3 — Persist ML output
-        state_manager.store_ml_output(user_id, ml_output)
+        sm.store_ml_output(user_id, ml_output)
 
         # 4 — Intervention + escalation
         intervention = _build_intervention(ml_output)
         escalation   = _build_escalation(ml_output)
 
         # 5 — Background DB log
-        background_tasks.add_task(_log_to_db, user_id)
+        background_tasks.add_task(_log_to_db, sm, user_id)
 
-        return state_manager.build_frontend_response(user_id, intervention, escalation)
+        return sm.build_frontend_response(user_id, intervention, escalation)
 
     except KeyError as e:
         raise HTTPException(status_code=400, detail=f"Missing field: {e}")

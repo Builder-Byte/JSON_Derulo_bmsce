@@ -43,6 +43,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.state_manager = state_manager
+
 
 # ─────────────────────────────────────────────
 # CORS

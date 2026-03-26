@@ -1,7 +1,7 @@
 # backend/routes/dashboard.py
 
 from fastapi import APIRouter, HTTPException, Request
-from models.schemas import DashboardPayload
+from backend.models.schemas import DashboardPayload
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 

@@ -1,0 +1,29 @@
+input 
+{
+  "emotion": {
+    "label": str,
+    "scores": dict
+  },
+  "features": {
+    "negativity": float,
+    "uncertainty": float,
+    "typing_irregularity": float
+  },
+  "csi": float,
+  "risk_score": float
+}
+
+output 
+{
+  "emotion": {
+    "label": str,
+    "scores": dict
+  },
+  "features": {
+    "negativity": float,
+    "uncertainty": float,
+    "typing_irregularity": float
+  },
+  "csi": float,
+  "risk_score": float
+}

@@ -15,15 +15,12 @@ input
 
 output 
 {
-  "emotion": {
-    "label": str,
-    "scores": dict
+  "emotion_probs": {
+    "anger": 0.1,
+    "sadness": 0.5,
+    "joy": 0.1,
+    "fear": 0.3
   },
-  "features": {
-    "negativity": float,
-    "uncertainty": float,
-    "typing_irregularity": float
-  },
-  "csi": float,
-  "risk_score": float
+  "emotion_label": "sadness",
+  "confidence": 0.82
 }
